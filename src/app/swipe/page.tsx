@@ -17,6 +17,18 @@ type Pet = {
 };
 
 export default function SwipePage() {
+  interface Pet {
+    id: string;
+    name: string;
+    species: 'dog' | 'cat' | 'horse';
+    breed?: string;
+    sex?: 'male' | 'female';
+    age_months?: number;
+    location?: string;
+    bio?: string;
+    photo_url?: string;
+  }
+  
   const [pets, setPets] = useState<Pet[]>([]);
   const [idx, setIdx] = useState(0);
   const [loading, setLoading] = useState(true);
