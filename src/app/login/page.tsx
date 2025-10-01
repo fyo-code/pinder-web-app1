@@ -1,36 +1,60 @@
 'use client';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import Link from 'next/link';
 
-export default function Login() {
+export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  async function signUp() {
+  async function handleSignIn(e: React.FormEvent) {
+    e.preventDefault();
     setMsg(null);
-    const { error } = await supabase.auth.signUp({ email, password });
-    setMsg(error ? error.message : 'Check your email to confirm, then sign in.');
-  }
-
-  async function signIn() {
-    setMsg(null);
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
     setMsg(error ? error.message : 'Signed in!');
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md space-y-3 bg-white p-6 rounded-xl shadow">
-        <h1 className="text-2xl font-semibold">Pinder • Login</h1>
-        <input className="w-full border p-2 rounded" placeholder="Email" type="email" onChange={e=>setEmail(e.target.value)} />
-        <input className="w-full border p-2 rounded" placeholder="Password" type="password" onChange={e=>setPassword(e.target.value)} />
-        <button className="w-full bg-blue-600 text-white py-2 rounded" onClick={signIn}>Sign In</button>
-        <button className="w-full bg-gray-200 py-2 rounded" onClick={signUp}>Sign Up</button>
-        {msg && <p className="text-sm text-gray-600">{msg}</p>}
-        <div className="text-right text-sm">
-          <Link className="text-blue-600" href="/create-pet">Continue →</Link>
+    <main className="min-h-screen bg-slate-100 text-slate-900 flex items-center justify-center p-6">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-lg p-6">
+        <h1 className="text-2xl font-semibold mb-4">Pinder • Login</h1>
+
+        <form onSubmit={handleSignIn} className="space-y-3">
+          <input
+            className="w-full rounded-lg border border-slate-300 bg-white p-3 placeholder-slate-500 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+
+          <input
+            className="w-full rounded-lg border border-slate-300 bg-white p-3 placeholder-slate-500 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <button
+            disabled={loading}
+            className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {loading ? 'Signing in…' : 'Sign In'}
+          </button>
+        </form>
+
+        {msg && <p className="mt-3 text-sm text-slate-700">{msg}</p>}
+
+        <div className="mt-4 text-right">
+          <a href="/create-pet" className="text-indigo-600 hover:text-indigo-700 text-sm font-medium">
+            Continue →
+          </a>
         </div>
       </div>
     </main>
