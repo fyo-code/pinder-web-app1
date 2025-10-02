@@ -1,13 +1,17 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+
+type Species = 'dog' | 'cat' | 'horse';
+type Sex = 'male' | 'female';
 
 interface Pet {
   id: string;
   name: string;
-  species: 'dog' | 'cat' | 'horse';
+  species: Species;
   breed?: string;
-  sex?: 'male' | 'female';
+  sex?: Sex;
   age_months?: number;
   location?: string;
   bio?: string;
@@ -16,76 +20,119 @@ interface Pet {
 
 export default function SwipePage() {
   const [pets, setPets] = useState<Pet[]>([]);
-  const [idx, setIdx] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [idx, setIdx] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // card drag state
+  // drag state
   const startX = useRef<number | null>(null);
-  const [offsetX, setOffsetX] = useState(0);
+  const deltaX = useRef<number>(0);
 
   useEffect(() => {
-    async function loadPets() {
-      const { data, error } = await supabase.from('pets').select('*');
+    (async () => {
+      setLoading(true);
+      setMsg(null);
+      const { data, error } = await supabase
+        .from('pets')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(25);
+
       if (error) setMsg(error.message);
-      else setPets(data as Pet[]);
+      else setPets((data ?? []) as Pet[]);
       setLoading(false);
-    }
-    loadPets();
+    })();
   }, []);
 
-  function handleTouchStart(e: React.TouchEvent) {
-    startX.current = e.touches[0].clientX;
+  const active = pets[idx];
+
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    startX.current = e.touches[0]?.clientX ?? null;
+    deltaX.current = 0;
   }
 
-  function handleTouchMove(e: React.TouchEvent) {
-    if (startX.current !== null) {
-      setOffsetX(e.touches[0].clientX - startX.current);
-    }
+  function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
+    if (startX.current == null) return;
+    deltaX.current = (e.touches[0]?.clientX ?? 0) - startX.current;
   }
 
   function handleTouchEnd() {
-    if (offsetX > 100) {
-      // swiped right
-      setIdx((prev) => prev + 1);
-    } else if (offsetX < -100) {
-      // swiped left
-      setIdx((prev) => prev + 1);
-    }
-    setOffsetX(0);
+    const dx = deltaX.current;
     startX.current = null;
+    deltaX.current = 0;
+    if (Math.abs(dx) < 60) return; // ignore small drags
+    setIdx((i) => Math.min(i + 1, pets.length));
   }
 
-  if (loading) return <p className="p-6">Loading…</p>;
-  if (idx >= pets.length) return <p className="p-6">No more pets!</p>;
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Loading…</p>
+      </main>
+    );
+  }
 
-  const pet = pets[idx];
+  if (!active) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">No more pets. Come back later!</p>
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
-      <div
-        className="w-80 bg-white p-4 rounded-xl shadow-lg"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{ transform: `translateX(${offsetX}px)` }}
-      >
-        {pet.photo_url && (
-          <img
-            src={pet.photo_url}
-            alt={pet.name}
-            className="w-full h-48 object-cover rounded-lg"
-          />
-        )}
-        <h2 className="text-xl font-semibold mt-3">{pet.name}</h2>
-        <p className="text-sm text-gray-600">{pet.species} • {pet.sex}</p>
-        {pet.age_months !== undefined && (
-          <p className="text-sm text-gray-600">{pet.age_months} months old</p>
-        )}
-        {pet.bio && <p className="mt-2 text-sm">{pet.bio}</p>}
-      </div>
+    <main className="min-h-screen bg-gray-50 flex items-end justify-center p-6">
+      <div className="w-full max-w-md">
+        <div
+          className="relative h-[520px] w-full select-none overflow-hidden rounded-2xl bg-white shadow-xl border border-gray-100"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* image */}
+          {active.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={active.photo_url}
+              alt={active.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-pink-100 to-pink-50" />
+          )}
 
-      {msg && <p className="absolute bottom-4 text-red-600">{msg}</p>}
+          {/* name strip */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-5">
+            <p className="text-white text-xl font-semibold">
+              {active.name}
+              {typeof active.age_months === 'number'
+                ? `, ${Math.round(active.age_months / 12)}`
+                : ''}
+            </p>
+            <p className="text-white/80 text-sm">
+              {active.breed ?? active.species}
+            </p>
+          </div>
+        </div>
+
+        {/* actions */}
+        <div className="mt-4 flex gap-3">
+          <button
+            onClick={() => setIdx((i) => Math.min(i + 1, pets.length))}
+            className="flex-1 rounded-xl border border-gray-200 bg-white py-3 font-medium text-gray-700 shadow-sm"
+          >
+            ✖ Dislike
+          </button>
+          <button
+            onClick={() => setIdx((i) => Math.min(i + 1, pets.length))}
+            className="flex-1 rounded-xl bg-pink-600 py-3 font-medium text-white shadow-sm hover:bg-pink-700"
+          >
+            ❤ Like
+          </button>
+        </div>
+
+        {msg && <p className="mt-3 text-center text-sm text-gray-700">{msg}</p>}
+      </div>
     </main>
   );
 }
