@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base page styling */
+html, body {
+  @apply bg-brand-grayBg text-gray-800;
+}
+
+/* Nice focus ring for accessibility */
+:focus-visible {
+  outline: none;
+  @apply ring-2 ring-brand-pink/60 ring-offset-2 ring-offset-white;
+}
+
+/* Reusable card + button styles */
+.card {
+  @apply bg-white rounded-2xl shadow-soft;
+}
+.btn {
+  @apply inline-flex items-center justify-center rounded-full px-5 py-2 font-medium transition;
+}
+.btn-primary {
+  @apply btn bg-brand-pink text-white hover:opacity-90;
+}
+.btn-ghost {
+  @apply btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50;
+}
+
+/* Bottom nav baseline (we’ll use this later) */
+.bottom-nav {
+  @apply fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-gray-200;
+}
+.bottom-nav .item {
+  @apply flex flex-col items-center justify-center gap-1 text-xs text-gray-500 py-3 flex-1;
+}
+.bottom-nav .item-active {
+  @apply text-brand-pink;
+}
