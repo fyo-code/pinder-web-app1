@@ -2,37 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-/* App theme tokens */
+/* simple light theme */
 :root {
-  --bg: 247 247 248;         /* #f7f7f8 */
-  --card: 255 255 255;       /* white */
-  --ink: 24 24 27;           /* neutral-900 */
-  --muted: 113 113 122;      /* neutral-500 */
-  --brand: 236 72 153;       /* pink-500 */
-  --brand-600: 219 39 119;   /* pink-600 */
+  --bg: 245 245 247;   /* #F5F5F7 */
+  --ink: 17 24 39;     /* slate-900 */
 }
 
-html, body, #__next {
-  height: 100%;
+html, body {
+  @apply bg-[rgb(var(--bg))] text-[rgb(var(--ink))] antialiased;
 }
 
-body {
-  @apply bg-[rgb(var(--bg))] text-[rgb(var(--ink))];
-}
-
-/* small helpers */
-.input {
-  @apply w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-pink-200;
-}
 .btn {
-  @apply inline-flex items-center justify-center rounded-xl px-4 py-3 font-medium transition;
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition;
 }
 .btn-primary {
-  @apply btn bg-[rgb(var(--brand))] text-white hover:bg-[rgb(var(--brand-600))];
+  @apply bg-brand-pink text-white hover:bg-brand-dark;
 }
 .btn-ghost {
-  @apply btn bg-white border border-neutral-200 hover:bg-neutral-50;
+  @apply bg-white text-brand-pink ring-1 ring-brand-light hover:bg-brand-light/40;
 }
+
 .card {
-  @apply rounded-2xl bg-[rgb(var(--card))] shadow-lg shadow-black/5 ring-1 ring-black/5;
+  @apply rounded-2xl bg-white p-6 shadow-card;
 }
