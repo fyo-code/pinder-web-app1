@@ -2,18 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light theme tokens */
+/* App theme tokens */
 :root {
-  --bg: 255 255 255;
-  --fg: 17 24 39;      /* gray-900 */
-}
-
-/* Dark mode (optional) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: 17 24 39;
-    --fg: 243 244 246; /* gray-100 */
-  }
+  --bg: 247 247 248;         /* #f7f7f8 */
+  --card: 255 255 255;       /* white */
+  --ink: 24 24 27;           /* neutral-900 */
+  --muted: 113 113 122;      /* neutral-500 */
+  --brand: 236 72 153;       /* pink-500 */
+  --brand-600: 219 39 119;   /* pink-600 */
 }
 
 html, body, #__next {
@@ -21,14 +17,22 @@ html, body, #__next {
 }
 
 body {
-  background: rgb(var(--bg));
-  color: rgb(var(--fg));
+  @apply bg-[rgb(var(--bg))] text-[rgb(var(--ink))];
 }
 
-/* A few helpers we’ll use later */
-.container {
-  @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+/* small helpers */
+.input {
+  @apply w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-pink-200;
+}
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-3 font-medium transition;
+}
+.btn-primary {
+  @apply btn bg-[rgb(var(--brand))] text-white hover:bg-[rgb(var(--brand-600))];
+}
+.btn-ghost {
+  @apply btn bg-white border border-neutral-200 hover:bg-neutral-50;
 }
 .card {
-  @apply bg-white rounded-2xl shadow-lg;
+  @apply rounded-2xl bg-[rgb(var(--card))] shadow-lg shadow-black/5 ring-1 ring-black/5;
 }
