@@ -1,137 +1,117 @@
 'use client';
-
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-type Species = 'dog' | 'cat' | 'horse';
-type Sex = 'male' | 'female';
-
-interface Pet {
+type Pet = {
   id: string;
   name: string;
-  species: Species;
-  breed?: string;
-  sex?: Sex;
-  age_months?: number;
-  location?: string;
-  bio?: string;
-  photo_url?: string;
-}
+  species: 'dog'|'cat'|'horse';
+  breed?: string|null;
+  sex?: 'male'|'female'|null;
+  age_months?: number|null;
+  location?: string|null;
+  bio?: string|null;
+  photo_url?: string|null;
+};
 
 export default function SwipePage() {
+  const [mePet, setMePet] = useState<Pet | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
-  const [idx, setIdx] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [idx, setIdx] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // drag state
-  const startX = useRef<number | null>(null);
-  const deltaX = useRef<number>(0);
-
+  // load my first pet + candidate pets
   useEffect(() => {
     (async () => {
       setLoading(true);
-      setMsg(null);
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setMsg('Please log in first.'); setLoading(false); return; }
+
+      // my pet (first one)
+      const { data: myPets, error: myErr } = await supabase
+        .from('pets').select('*').eq('user_id', user.id).limit(1);
+      if (myErr) { setMsg(myErr.message); setLoading(false); return; }
+      if (!myPets || myPets.length === 0) {
+        setMsg('Create your pet profile first.'); setLoading(false); return;
+      }
+      setMePet(myPets[0] as Pet);
+
+      // candidate pets (not mine). You can add location filter later.
+      const { data: candidates, error: candErr } = await supabase
         .from('pets')
         .select('*')
+        .neq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(25);
-
-      if (error) setMsg(error.message);
-      else setPets((data ?? []) as Pet[]);
+        .limit(20);
+      if (candErr) { setMsg(candErr.message); setLoading(false); return; }
+      setPets((candidates ?? []) as Pet[]);
+      setIdx(0);
       setLoading(false);
     })();
   }, []);
 
-  const active = pets[idx];
+  async function vote(decision: 'like'|'dislike') {
+    if (!mePet) { setMsg('No local pet.'); return; }
+    const current = pets[idx];
+    if (!current) return;
 
-  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
-    startX.current = e.touches[0]?.clientX ?? null;
-    deltaX.current = 0;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setMsg('Please log in first.'); return; }
+
+    const { error } = await supabase.from('likes').insert({
+      liker_user_id: user.id,
+      liker_pet_id: mePet.id,
+      liked_pet_id: current.id,
+      decision
+    });
+    if (error) { setMsg(error.message); return; }
+
+    setIdx(i => i + 1);
   }
 
-  function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
-    if (startX.current == null) return;
-    deltaX.current = (e.touches[0]?.clientX ?? 0) - startX.current;
-  }
-
-  function handleTouchEnd() {
-    const dx = deltaX.current;
-    startX.current = null;
-    deltaX.current = 0;
-    if (Math.abs(dx) < 60) return; // ignore small drags
-    setIdx((i) => Math.min(i + 1, pets.length));
-  }
-
-  if (loading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading…</p>
-      </main>
-    );
-  }
-
-  if (!active) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">No more pets. Come back later!</p>
-      </main>
-    );
-  }
+  const card = pets[idx];
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-end justify-center p-6">
-      <div className="w-full max-w-md">
-        <div
-          className="relative h-[520px] w-full select-none overflow-hidden rounded-2xl bg-white shadow-xl border border-gray-100"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* image */}
-          {active.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={active.photo_url}
-              alt={active.name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-pink-100 to-pink-50" />
-          )}
+    <main className="container">
+      <div className="card centered">
+        <h1>Swiping</h1>
 
-          {/* name strip */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-5">
-            <p className="text-white text-xl font-semibold">
-              {active.name}
-              {typeof active.age_months === 'number'
-                ? `, ${Math.round(active.age_months / 12)}`
-                : ''}
-            </p>
-            <p className="text-white/80 text-sm">
-              {active.breed ?? active.species}
-            </p>
+        {loading && <p>Loading…</p>}
+        {!loading && !card && <p>No more nearby pets right now. Check back soon!</p>}
+
+        {!loading && card && (
+          <div className="stack">
+            <div>
+              <div style={{
+                borderRadius: 16, overflow: 'hidden',
+                width: '100%', maxWidth: 520, aspectRatio: '1 / 1',
+                background: '#eef1f4', margin: '0 auto'
+              }}>
+                {card.photo_url
+                  ? <img src={card.photo_url} alt={card.name} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                  : <div style={{display:'grid',placeItems:'center',height:'100%',color:'#6b7280'}}>No photo</div>}
+              </div>
+            </div>
+
+            <div>
+              <h2 style={{marginBottom:8}}>
+                {card.name}{card.age_months != null ? `, ${Math.floor(card.age_months/12)}` : ''}
+              </h2>
+              <p style={{margin:'4px 0', color:'#6b7280'}}>
+                {card.breed ?? card.species}{card.location ? ` • ${card.location}` : ''}
+              </p>
+              {card.bio && <p style={{marginTop:8}}>{card.bio}</p>}
+            </div>
+
+            <div style={{display:'flex', gap:12}}>
+              <button onClick={()=>vote('dislike')} style={{background:'#e5e7eb', color:'#111827'}}>Dislike</button>
+              <button onClick={()=>vote('like')}>Like</button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* actions */}
-        <div className="mt-4 flex gap-3">
-          <button
-            onClick={() => setIdx((i) => Math.min(i + 1, pets.length))}
-            className="flex-1 rounded-xl border border-gray-200 bg-white py-3 font-medium text-gray-700 shadow-sm"
-          >
-            ✖ Dislike
-          </button>
-          <button
-            onClick={() => setIdx((i) => Math.min(i + 1, pets.length))}
-            className="flex-1 rounded-xl bg-pink-600 py-3 font-medium text-white shadow-sm hover:bg-pink-700"
-          >
-            ❤ Like
-          </button>
-        </div>
-
-        {msg && <p className="mt-3 text-center text-sm text-gray-700">{msg}</p>}
+        {msg && <p style={{marginTop:12}}>{msg}</p>}
       </div>
     </main>
   );
