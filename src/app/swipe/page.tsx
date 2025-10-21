@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -32,46 +33,43 @@ export default function SwipePage() {
       setLoading(true);
       setMsg(null);
 
-      // who am I
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setMsg('Please log in first.'); setLoading(false); return; }
       setUserId(user.id);
 
-      // my pet (the pet I’m swiping with) – pick the latest you created
+      // my latest pet
       const { data: myPets, error: meErr } = await supabase
         .from('pets')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1);
+
       if (meErr) { setMsg(meErr.message); setLoading(false); return; }
       const mine = (myPets ?? [])[0] as Pet | undefined;
       if (!mine) { setMsg('Create your pet profile first.'); setLoading(false); return; }
       setMePet(mine);
 
-      // -------------------------------
-      // EXCLUDE ALREADY SEEN PETS
-      // -------------------------------
-      // 1) read everything I have already judged from 'likes' table
+      // pets I already judged
       const { data: seenRows, error: seenErr } = await supabase
         .from('likes')
         .select('liked_pet_id')
         .eq('liker_user_id', user.id)
         .eq('liker_pet_id', mine.id);
-      if (seenErr) { setMsg(seenErr.message); setLoading(false); return; }
 
+      if (seenErr) { setMsg(seenErr.message); setLoading(false); return; }
       const seenIds = new Set<string>((seenRows ?? []).map((r: any) => r.liked_pet_id as string));
 
-      // 2) fetch candidates (others’ pets)
+      // candidate pets (not mine)
       const { data: candidates, error: candErr } = await supabase
         .from('pets')
         .select('*')
         .neq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
+
       if (candErr) { setMsg(candErr.message); setLoading(false); return; }
 
-      // 3) filter out ones I’ve already judged
       const filtered = (candidates ?? []).filter((p: any) => !seenIds.has(p.id));
       setPets(filtered as Pet[]);
       setIdx(0);
@@ -82,16 +80,15 @@ export default function SwipePage() {
   async function recordSwipe(target: Pet, liked: boolean) {
     if (!userId || !mePet) return;
 
-    // write to likes table – store dislikes too so we don’t see them again
     const { error: likeErr } = await supabase.from('likes').insert({
       liker_user_id: userId,
       liker_pet_id: mePet.id,
       liked_pet_id: target.id,
-      liked, // boolean column (true=like, false=dislike)
+      liked,
     });
     if (likeErr) { setMsg(likeErr.message); return; }
 
-    // if like = true, check for mutual like to create a match (optional if you already have this)
+    // create match on mutual like
     if (liked) {
       const { data: back, error: backErr } = await supabase
         .from('likes')
@@ -100,6 +97,7 @@ export default function SwipePage() {
         .eq('liked_pet_id', mePet.id)
         .eq('liked', true)
         .limit(1);
+
       if (!backErr && (back ?? []).length > 0) {
         await supabase.from('matches').insert({
           pet_a: mePet.id,
@@ -110,13 +108,20 @@ export default function SwipePage() {
       }
     }
 
-    // advance
-    setIdx((i) => Math.min(i + 1, pets.length)); // will become null at end
+    setIdx(i => Math.min(i + 1, pets.length));
   }
 
-  // UI (kept simple on purpose)
   return (
-    <main className="container">
+    <main className="container" style={{maxWidth: 880, margin: '0 auto', padding: 16}}>
+      {/* Top nav links */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+        <Link href="/matches">Matches</Link>
+        <div style={{display:'flex', gap:16}}>
+          <Link href="/create-pet">Create Pet</Link>
+          <Link href="/login">Login</Link>
+        </div>
+      </div>
+
       <div className="card" style={{maxWidth: 760, margin: '0 auto'}}>
         <h1>Swiping</h1>
 
@@ -137,7 +142,9 @@ export default function SwipePage() {
 
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
               <div>
-                <div className="title-sm">{current.name}{typeof current.age_months==='number' ? `, ${Math.floor(current.age_months/12)}` : ''}</div>
+                <div className="title-sm">
+                  {current.name}{typeof current.age_months==='number' ? `, ${Math.floor(current.age_months/12)}` : ''}
+                </div>
                 <div className="muted">
                   {current.breed ?? current.species}
                   {current.location ? ` • ${current.location}` : ''}
