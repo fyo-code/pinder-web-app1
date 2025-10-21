@@ -25,6 +25,11 @@ export default function SwipePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // FILTERS
+  const [fSpecies, setFSpecies] = useState<'any'|'dog'|'cat'|'horse'>('any');
+  const [fSex, setFSex] = useState<'any'|'male'|'female'>('any');
+  const [fCity, setFCity] = useState<string>('');
+
   const current = useMemo(() => pets[idx] ?? null, [pets, idx]);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -44,38 +49,58 @@ export default function SwipePage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1);
-
       if (meErr) { setMsg(meErr.message); setLoading(false); return; }
       const mine = (myPets ?? [])[0] as Pet | undefined;
       if (!mine) { setMsg('Create your pet profile first.'); setLoading(false); return; }
       setMePet(mine);
 
-      // pets I already judged
-      const { data: seenRows, error: seenErr } = await supabase
-        .from('likes')
-        .select('liked_pet_id')
-        .eq('liker_user_id', user.id)
-        .eq('liker_pet_id', mine.id);
-
-      if (seenErr) { setMsg(seenErr.message); setLoading(false); return; }
-      const seenIds = new Set<string>((seenRows ?? []).map((r: any) => r.liked_pet_id as string));
-
-      // candidate pets (not mine)
-      const { data: candidates, error: candErr } = await supabase
-        .from('pets')
-        .select('*')
-        .neq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (candErr) { setMsg(candErr.message); setLoading(false); return; }
-
-      const filtered = (candidates ?? []).filter((p: any) => !seenIds.has(p.id));
-      setPets(filtered as Pet[]);
-      setIdx(0);
+      await loadCandidates(user.id, mine.id);
       setLoading(false);
     })();
   }, []);
+
+  async function loadCandidates(uid: string, myPetId: string) {
+    // already seen by (mePetId, uid)
+    const { data: seenRows, error: seenErr } = await supabase
+      .from('likes')
+      .select('liked_pet_id')
+      .eq('liker_user_id', uid)
+      .eq('liker_pet_id', myPetId);
+    if (seenErr) { setMsg(seenErr.message); return; }
+    const seen = new Set<string>((seenRows ?? []).map((r:any) => r.liked_pet_id as string));
+
+    // base query: not mine
+    let q = supabase
+      .from('pets')
+      .select('*')
+      .neq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    // apply species/sex filters server-side
+    if (fSpecies !== 'any') q = q.eq('species', fSpecies);
+    if (fSex !== 'any')     q = q.eq('sex', fSex);
+
+    const { data: pool, error: candErr } = await q;
+    if (candErr) { setMsg(candErr.message); return; }
+
+    // city filter client-side (simple contains match)
+    let filtered = (pool ?? []).filter((p:any) => !seen.has(p.id));
+    if (fCity.trim()) {
+      const needle = fCity.trim().toLowerCase();
+      filtered = filtered.filter((p:any) => (p.location ?? '').toLowerCase().includes(needle));
+    }
+
+    setPets(filtered as Pet[]);
+    setIdx(0);
+  }
+
+  async function applyFilters() {
+    if (!userId || !mePet) return;
+    setLoading(true);
+    await loadCandidates(userId, mePet.id);
+    setLoading(false);
+  }
 
   async function recordSwipe(target: Pet, liked: boolean) {
     if (!userId || !mePet) return;
@@ -88,7 +113,6 @@ export default function SwipePage() {
     });
     if (likeErr) { setMsg(likeErr.message); return; }
 
-    // create match on mutual like
     if (liked) {
       const { data: back, error: backErr } = await supabase
         .from('likes')
@@ -97,7 +121,6 @@ export default function SwipePage() {
         .eq('liked_pet_id', mePet.id)
         .eq('liked', true)
         .limit(1);
-
       if (!backErr && (back ?? []).length > 0) {
         await supabase.from('matches').insert({
           pet_a: mePet.id,
@@ -112,22 +135,54 @@ export default function SwipePage() {
   }
 
   return (
-    <main className="container" style={{maxWidth: 880, margin: '0 auto', padding: 16}}>
-      {/* Top nav links */}
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+    <main style={{maxWidth: 960, margin:'0 auto', padding:16}}>
+      {/* Links */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
         <Link href="/matches">Matches</Link>
-        <div style={{display:'flex', gap:16}}>
+        <div style={{display:'flex', gap:12}}>
           <Link href="/create-pet">Create Pet</Link>
           <Link href="/login">Login</Link>
         </div>
       </div>
 
+      {/* Filters */}
+      <div style={{
+        border:'1px solid #e5e7eb', borderRadius:12, padding:12, marginBottom:12,
+        display:'grid', gap:8, gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))'
+      }}>
+        <div>
+          <label style={{fontSize:12, opacity:.7}}>Species</label>
+          <select value={fSpecies} onChange={(e)=>setFSpecies(e.target.value as any)} style={{width:'100%'}}>
+            <option value="any">Any</option>
+            <option value="dog">Dog</option>
+            <option value="cat">Cat</option>
+            <option value="horse">Horse</option>
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:12, opacity:.7}}>Sex</label>
+          <select value={fSex} onChange={(e)=>setFSex(e.target.value as any)} style={{width:'100%'}}>
+            <option value="any">Any</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:12, opacity:.7}}>City contains</label>
+          <input value={fCity} onChange={(e)=>setFCity(e.target.value)} placeholder="e.g., Bucharest" style={{width:'100%'}} />
+        </div>
+        <div style={{display:'flex', alignItems:'end'}}>
+          <button onClick={applyFilters} style={{width:'100%'}}>Apply filters</button>
+        </div>
+      </div>
+
+      {/* Card */}
       <div className="card" style={{maxWidth: 760, margin: '0 auto'}}>
         <h1>Swiping</h1>
 
         {loading && <p>Loading…</p>}
         {msg && <p>{msg}</p>}
-        {!loading && !current && <p>No more nearby pets for now. Check back later!</p>}
+        {!loading && !current && <p>No pets for these filters. Try relaxing them.</p>}
 
         {current && (
           <div ref={cardRef} style={{marginTop: 12}}>
