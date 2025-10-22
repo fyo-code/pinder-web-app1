@@ -1,6 +1,7 @@
+// postcss.config.js (Next 15 / Turbopack friendly)
 module.exports = {
   plugins: {
-    tailwindcss: {},
+    '@tailwindcss/postcss': {}, // <-- use this, not 'tailwindcss'
     autoprefixer: {},
   },
-}
+};
